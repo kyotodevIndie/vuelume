@@ -13,6 +13,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.9",
+    "@vuelume/vite-plugin": "workspace:*",
     "typescript": "~6.0.3",
     "vite": "^8.0.2"
   }

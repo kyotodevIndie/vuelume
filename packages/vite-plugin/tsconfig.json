@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "lib": ["ES2024", "DOM"]
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../project-model" },
+    { "path": "../vue-code-engine" },
+    { "path": "../project-analyzer" }
+  ]
+}

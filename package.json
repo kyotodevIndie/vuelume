@@ -9,8 +9,8 @@
     "node": ">=22.13"
   },
   "scripts": {
-    "build": "tsc -b",
-    "typecheck": "tsc -b && tsc -p tsconfig.tests.json",
+    "build": "tsc -b && pnpm --filter @vuelume/playground build",
+    "typecheck": "tsc -b && tsc -p tsconfig.tests.json && pnpm --filter @vuelume/playground typecheck",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint .",

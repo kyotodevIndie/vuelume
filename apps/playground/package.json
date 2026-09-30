@@ -1,0 +1,28 @@
+{
+  "name": "@vuelume/playground",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Minimal visual editor UI (Component Tree | Preview | Inspector). Served by @vuelume/vite-plugin at /__vuelume/.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "vue": "^3.5.43"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.9",
+    "@vuelume/project-model": "workspace:*",
+    "typescript": "~6.0.3",
+    "vite": "^8.0.2",
+    "vue-tsc": "^3.3.11"
+  }
+}

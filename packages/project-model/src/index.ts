@@ -14,3 +14,4 @@ export type * from './component.js'
 export type * from './project.js'
 
 export { walkElements, findElementById, findElementAtOffset } from './traverse.js'
+export * from './canvas.js'

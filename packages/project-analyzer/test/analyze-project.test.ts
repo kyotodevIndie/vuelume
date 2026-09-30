@@ -86,7 +86,8 @@ import Lib from 'some-lib'
     await write('src/other/Card.vue', '<template><div /></template>')
     await write('src/Broken.vue', '<template><div></template>')
     await write('node_modules/pkg/Ignored.vue', '<template><div /></template>')
-    await write('.hidden/Ignored.vue', '<template><div /></template>')
+    await write('.nuxt/Ignored.vue', '<template><div /></template>')
+    await write('.vitepress/theme/Layout.vue', '<template><div /></template>')
     await write('src/types.d.ts', 'export {}')
   })
 
@@ -94,9 +95,10 @@ import Lib from 'some-lib'
     await rm(root, { recursive: true, force: true })
   })
 
-  it('skips ignored/hidden directories and declaration files', async () => {
+  it('skips ignored directories and declaration files, keeps .vitepress', async () => {
     const files = await discoverSourceFiles(root)
     expect(files.map((f) => f.file)).toEqual([
+      '.vitepress/theme/Layout.vue',
       'src/App.vue',
       'src/Broken.vue',
       'src/other/Card.vue',

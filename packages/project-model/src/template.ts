@@ -45,6 +45,8 @@ export type ReadonlyReason =
   | 'directive'
   /** Special attribute with framework semantics: `is`, `key`, `ref`. */
   | 'reserved'
+  /** Attribute name the tool cannot write safely (e.g. `@foo`, `[x]` from other template syntaxes). */
+  | 'unsupported-name'
 
 interface AttributeBase {
   /** Full attribute text, e.g. `title="Notebook"` or `:price="4999"`. */

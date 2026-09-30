@@ -8,10 +8,20 @@ export const DEFAULT_IGNORED_DIRECTORIES = [
   'build',
   'coverage',
   'public',
+  'cache',
   '.git',
   '.nuxt',
   '.output',
   '.vite',
+  '.cache',
+  '.turbo',
+  '.temp',
+  '.vercel',
+  '.netlify',
+  '.idea',
+  '.vscode',
+  '.husky',
+  '.pnpm-store',
 ]
 
 const KINDS: Record<string, SourceFileInfo['kind']> = {
@@ -26,7 +36,8 @@ const KINDS: Record<string, SourceFileInfo['kind']> = {
 
 /**
  * Lists source files under `root` (project-relative POSIX paths, sorted).
- * Skips ignored and hidden directories and does not follow symlinks.
+ * Skips ignored directories (not all hidden ones: `.vitepress`/`.storybook` hold real components)
+ * and does not follow symlinks.
  */
 export async function discoverSourceFiles(
   root: string,
@@ -40,7 +51,7 @@ export async function discoverSourceFiles(
     for (const entry of entries) {
       const absolute = path.join(directory, entry.name)
       if (entry.isDirectory()) {
-        if (!ignored.has(entry.name) && !entry.name.startsWith('.')) await walk(absolute)
+        if (!ignored.has(entry.name)) await walk(absolute)
       } else if (entry.isFile()) {
         const name = entry.name
         if (name.endsWith('.d.ts')) continue

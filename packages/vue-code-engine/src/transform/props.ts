@@ -11,7 +11,12 @@ import { findElementById, walkElements } from '@vuelume/project-model'
 import { escapeAttributeValue, serializeJsLiteral } from '../literals.js'
 import { camelize } from '../names.js'
 import { detectEol, LineIndex } from '../positions.js'
-import { buildTemplateModel, propKey, RESERVED_ATTRIBUTES } from '../template.js'
+import {
+  buildTemplateModel,
+  isWritableAttributeName,
+  propKey,
+  RESERVED_ATTRIBUTES,
+} from '../template.js'
 import { applyTextEdits, type TextEdit } from './edits.js'
 
 /** Values the Inspector can write in this phase. Anything else stays "Open in code". */
@@ -57,7 +62,6 @@ export interface SetPropOptions extends PropTarget {
   value: PropValue
 }
 
-const VALID_NAME = /^[A-Za-z_][\w-]*$/
 /** Characters allowed in an unquoted HTML attribute value (plus no `&`, to avoid references). */
 const UNQUOTED_SAFE = /^[^\s"'=<>`&]+$/
 
@@ -190,7 +194,7 @@ function loadElement(source: string, target: PropTarget): Loaded {
 }
 
 function validateName(name: string): { ok: false; error: TransformError } | null {
-  if (!VALID_NAME.test(name) || name.startsWith('v-')) {
+  if (!isWritableAttributeName(name)) {
     return fail('invalid-name', `"${name}" is not a plain prop name.`)
   }
   if (RESERVED_ATTRIBUTES.has(camelize(name))) {

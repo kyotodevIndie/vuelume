@@ -281,6 +281,18 @@ export const RESERVED_ATTRIBUTES: ReadonlySet<string> = new Set([
   'ref_key',
 ])
 
+/**
+ * Attribute names the transformations can write. Colon-separated segments cover inline SVG
+ * (`xlink:href`, `xml:space`) and library conventions such as PrimeVue pass-through
+ * (`pt:root:class`). Shared by the model (editability) and the transformations, so the two
+ * layers can never disagree.
+ */
+const WRITABLE_NAME = /^[A-Za-z_][\w-]*(?::[A-Za-z_][\w-]*)*$/
+
+export function isWritableAttributeName(name: string): boolean {
+  return WRITABLE_NAME.test(name) && !name.startsWith('v-')
+}
+
 /** Normalized prop name an attribute writes to, or `null` if it is not a named prop. */
 export function propKey(attr: TemplateAttribute): string | null {
   if (attr.kind === 'static') return camelize(attr.name)
@@ -302,6 +314,7 @@ export function propEditBlocker(
   }
   const key = propKey(attr)
   if (key && RESERVED_ATTRIBUTES.has(key)) return 'reserved'
+  if (attr.name !== null && !isWritableAttributeName(attr.name)) return 'unsupported-name'
   if (flags.includes('spread-binding')) return 'spread-binding'
   if (key && modelArgs.has(key)) return 'model-binding'
   if (key && (counts.get(key) ?? 0) > 1) return 'duplicate'

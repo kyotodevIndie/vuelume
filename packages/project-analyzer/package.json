@@ -1,0 +1,21 @@
+{
+  "name": "@vuelume/project-analyzer",
+  "version": "0.0.0",
+  "description": "Discovers Vue components in a project directory and builds a ProjectModel.",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@vuelume/project-model": "workspace:*",
+    "@vuelume/vue-code-engine": "workspace:*"
+  }
+}

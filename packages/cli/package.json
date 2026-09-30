@@ -1,0 +1,24 @@
+{
+  "name": "@vuelume/cli",
+  "version": "0.0.0",
+  "description": "Command line interface: inspect Vue projects and apply safe transformations.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "vuelume": "./dist/bin.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@vuelume/project-analyzer": "workspace:*",
+    "@vuelume/project-model": "workspace:*",
+    "@vuelume/vue-code-engine": "workspace:*"
+  }
+}

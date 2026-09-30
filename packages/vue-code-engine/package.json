@@ -1,0 +1,24 @@
+{
+  "name": "@vuelume/vue-code-engine",
+  "version": "0.0.0",
+  "description": "Parses Vue SFCs into the project model and applies safe, surgical source transformations.",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@babel/parser": "^7.29.0",
+    "@babel/types": "^7.29.0",
+    "@vue/compiler-core": "^3.5.43",
+    "@vue/compiler-sfc": "^3.5.43",
+    "@vuelume/project-model": "workspace:*"
+  }
+}

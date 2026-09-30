@@ -1,0 +1,6 @@
+dist
+coverage
+pnpm-lock.yaml
+# Fixtures intentionally contain "unusual" formatting that the engine must preserve.
+**/fixtures/**
+examples/**/*.vue

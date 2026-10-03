@@ -21,9 +21,10 @@ pnpm workspace with:
 - `packages/cli` — `vuelume` command (added: the brief's `tool inspect` needed a home, and a CLI is
   the cheapest way to exercise the engine end to end before any UI exists).
 - `examples/basic-shop` — a real Vite + Vue app used as the analysis/editing target and in tests.
-- `apps/playground` — **deferred to Phase 4**. It is the IDE UI; in Phases 0–1 an empty app would
-  only add maintenance. The "project being edited" (`examples/*`) and "the tool's UI" (`apps/*`)
-  stay separate concepts.
+- `apps/playground` — the editor UI (added with the visual editor, see ADR-0011). It stays
+  separate from `examples/*`: "the tool's UI" vs. "the project being edited".
+- `packages/vite-plugin` — dev-only integration (instrumentation, editing API, history), added
+  with ADR-0008/0010.
 
 The provisional name is `vuelume` (npm scope `@vuelume/*`, CLI `vuelume`). Renaming later means
 replacing the scope and the `CLI_NAME` constant in `packages/cli/src/main.ts`.

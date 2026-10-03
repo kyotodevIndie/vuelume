@@ -1,201 +1,172 @@
 # Architecture
 
-> Status: Phase 0–1 implemented, with a Phase 2/3 proof of concept (`setProp`/`removeProp`).
-> Name: **vuelume** is a provisional name (see [ADR-0001](docs/adr/0001-monorepo-and-package-boundaries.md)).
+> Status: visual editor (layers, palette, drag & drop, inspector, undo/redo) on top of a verified
+> code engine. Name: **vuelume** is provisional (see [ADR-0001](docs/adr/0001-monorepo-and-package-boundaries.md)).
 
 ## 1. Goal and principles
 
-A visual IDE for **existing** Vue projects where **the `.vue` source code is the source of truth**.
-There is no proprietary JSON and no runtime: if the tool is removed, the project stays a normal Vue app.
+A visual editor for **existing** Vue projects where **the `.vue` source code is the source of
+truth**. There is no proprietary JSON and no runtime: if the tool is removed, the project stays a
+normal Vue app.
 
 Principles, in order of priority:
 
 1. **Never corrupt code.** When in doubt, refuse the edit and say "open in code".
 2. **Minimal diffs.** Change only the bytes needed; never re-print or re-format a file.
 3. **Preserve what is not understood.** Unknown syntax is kept untouched and reported.
-4. **Code-first and visual-first coexist.** The engine is a pure function of the current source,
-   so edits made in a text editor and in the visual editor are equally valid inputs.
-5. **Core ≠ UI.** Analysis and transformations know nothing about the editor UI.
-6. **Everything is tested**, especially transformations (unit, round-trip and fuzz-style tests).
+4. **Code-first and visual-first coexist.** Edits from a text editor and from the visual editor
+   are equally valid; neither overwrites the other.
+5. **Separation of concerns.** Analysis, operations, editor state, preview communication and UI
+   are separate layers; the UI never manipulates source text.
+6. **Everything is tested**, especially operations (unit, property and real-world corpus tests).
 
-## 2. Packages
+## 2. Packages and layers
 
 ```
 packages/
-  project-model      Types for the intermediate representation (+ tiny pure helpers). No deps.
-  vue-code-engine    Pure: .vue source string ⇄ ComponentModel; safe transformations. No fs.
-  project-analyzer   Node: discovers files, runs the engine per file, resolves cross-file links.
-  cli                `vuelume inspect | tree | set-prop | remove-prop | verify`
+  project-model      Plain data: model types, editing protocol (operations, history), canvas
+                     protocol (preview ↔ editor messages). No dependencies.
+  vue-code-engine    Pure (no fs): analysis + verified operations on a source string.
+  project-analyzer   Node, read-only: file discovery, cross-file resolution → ProjectModel.
+  vite-plugin        Dev only: preview instrumentation, editing service (writes + history),
+                     HTTP API, serves the editor UI.
+  cli                `vuelume inspect | tree | set-prop | remove-prop | verify`.
+apps/
+  playground         Editor UI (Vue 3): Layers, Insert palette, Preview, Inspector.
 examples/
-  basic-shop         A real, runnable Vue 3 + Vite app used as the analysis/editing target.
+  basic-shop         A real Vue 3 + Vite app used as the editing target.
 ```
 
-Dependency direction is strictly one-way:
+| Concern                      | Where                                                                                                                       |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Analysis of Vue code         | `vue-code-engine` (`analyzeComponent`), `project-analyzer`                                                                  |
+| Operations on code           | `vue-code-engine` (`setProp`, `insertNode`, `moveNode`, …)                                                                  |
+| Writes, concurrency, history | `vite-plugin/src/service.ts`, `history.ts`                                                                                  |
+| Preview communication        | `project-model/src/canvas.ts` (protocol), `vite-plugin/src/client.ts` (runtime in the app), `vite-plugin/src/instrument.ts` |
+| Editor state                 | `apps/playground/src/editor.ts` (single store; only place that calls the API)                                               |
+| Visual interface             | `apps/playground/src/components/*`                                                                                          |
 
-```
-project-model  ←  vue-code-engine  ←  project-analyzer  ←  cli
-                                                        ←  (future) vite plugin, editor UI, agents
-```
-
-- `vue-code-engine` has **no file system access** so it can run anywhere (Node, a Vite plugin,
-  a web worker, a test). It takes a string, returns a model or a new string.
-- `project-analyzer` is the only layer that reads directories; it never writes.
-- Writing files is the job of the outermost layer (the CLI today, a Vite dev-server plugin later),
-  which also owns concurrency checks (see §7).
-
-Why no `apps/playground` yet: the brief's Phase 4 playground is the IDE UI. What Phases 0–1 need
-is a _target project_ to analyze, which is `examples/basic-shop`. Mixing both would blur
-"the tool" and "the project being edited". See ADR-0001.
+Dependency direction is one-way:
+`project-model ← vue-code-engine ← project-analyzer ← (cli | vite-plugin)`; the UI depends only
+on `project-model` (types/protocol) and talks to the plugin over HTTP + `postMessage`.
 
 ## 3. Data flow
 
-### Analysis (read)
-
-```
-.vue file ──@vue/compiler-sfc parse()──► SFC descriptor
-                                            │
-            ┌───────────────────────────────┴──────────────────────────────┐
-            ▼                                                              ▼
-  <template> raw parser AST                                   <script setup> / <script>
-  (before compiler transforms:                                 Babel AST (@babel/parser via
-   v-if/v-for are still directives)                            compiler-sfc's babelParse)
-            │                                                              │
-            ▼                                                              ▼
-  TemplateModel: elements, attributes,                  props, emits, defineModel, defineOptions,
-  flags, editability, exact ranges                      imports, template bindings
-            └───────────────────────────────┬──────────────────────────────┘
-                                            ▼
-                                     ComponentModel  (JSON-serializable)
-                                            │   project-analyzer: resolve imports → files
-                                            ▼
-                                      ProjectModel
+```mermaid
+flowchart LR
+  subgraph Browser
+    UI[Editor UI<br/>apps/playground] -- postMessage --> APP[App in iframe<br/>+ client runtime]
+    APP -- select / drop / keys / HMR updates --> UI
+  end
+  UI -- Operation + version --> API[vite-plugin API]
+  API --> SVC[EditorService]
+  SVC -- run --> ENG[vue-code-engine<br/>operation + verification]
+  SVC -- write + record history --> FS[(.vue files)]
+  FS -- watcher --> VITE[Vite HMR]
+  VITE -- instrumented module --> APP
 ```
 
-### Transformation (write)
+1. The user acts in the UI (inspector, palette, drag & drop, shortcut).
+2. The store turns it into an `Operation` (`setProp`, `setText`, `insertNode`, `moveNode`,
+   `wrapNode`, `duplicateNode`, `removeNode`, `removeProp`) with the **version** (content hash)
+   of the file the UI last saw.
+3. The service rejects stale versions (409), runs project-level checks (component imports,
+   required props, target slot), runs the engine operation, re-checks the file just before
+   writing, writes, and records the change in the history.
+4. Vite's watcher triggers HMR; the instrumented preview re-renders (template edits keep state).
+5. The client runtime reports `vuelume:updated`; the UI re-reads affected files (this also covers
+   edits made in any other editor).
 
-```
-source + operation (nodeId, prop, value)
-   │
-   1. parse → refuse if the file has parse errors
-   2. locate node by NodeId → refuse if not found
-   3. apply safe-subset rules → refuse with a ReadonlyReason
-   4. compute a minimal TextEdit (keep quotes, binding form, layout, EOL)
-   5. apply edit
-   6. VERIFY: re-parse the result and check
-        - it parses without errors
-        - nothing outside the element's start tag changed
-        - same element (id + tag), same subtree size
-        - every other attribute is byte-identical and in order
-        - the targeted prop now has exactly the requested value
-      → any failure: reject, return the original untouched
-   ▼
-new source + edits
-```
+## 4. The engine: analysis
 
-The verification step is the core safety mechanism: the transformation logic may have bugs,
-but a buggy edit cannot silently reach disk. (During development, it caught a `v-if` "prop name"
-that slipped past validation.)
+`@vue/compiler-sfc` raw parser AST for templates and Babel for scripts (ADR-0004). Output:
+`ComponentModel` with props (author's type text + `kind`/`options` for widgets, `required`,
+`default`), emits, slots, imports, usages (tag → binding → import → resolved file), template tree
+with exact ranges, attribute kinds, flags and per-attribute editability. Everything is plain data.
 
-### Future IDE loop (not implemented)
+`NodeId` = element index path (`"1.2"`), global identity `{ file, nodeId }` (ADR-0006). Structural
+operations return the id of the resulting node so selection stays in sync; when there is none
+(removal), the UI clears the selection instead of keeping a shifted id.
 
-```
- Editor UI ── operation ──► Vite dev-server plugin ── engine.setProp ──► write .vue
-    ▲                                                                         │
-    └──────── canvas re-renders ◄── Vite HMR (template-only → rerender) ◄─────┘
-```
+## 5. The engine: operations and verification
 
-HMR was verified manually on `examples/basic-shop`: after `vuelume set-prop … --write`, Vite
-performed an `hmr update` (no page reload) and component state was preserved.
+All operations produce minimal `TextEdit`s on the original source (ADR-0003) and are verified
+before returning:
 
-## 4. The project model
+| Operation                                                                      | Verification                                                                                                                                                                                                           |
+| ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `setProp`, `removeProp`                                                        | Edits confined to the start tag; same element; other attributes byte-identical; prop has the requested value                                                                                                           |
+| `setText`, `insertNode`, `removeNode`, `moveNode`, `wrapNode`, `duplicateNode` | **Shape verification** (ADR-0009): the operation is applied to the formatting-free shape of the original template; the re-parsed result must have exactly that shape. Other blocks unchanged; requested import present |
 
-Defined in `packages/project-model`. Key points:
+Structural rules (refused with a clear error, file untouched):
 
-- **Ranges** are `{ start, end }` with a 0-based UTF-16 `offset` (matches JS strings) plus 1-based
-  `line`/`column`. Script (Babel) and template (Vue) offsets are normalized to whole-file offsets.
-- **`TemplateElementNode`** keeps `range`, `startTagRange`, `elementType`
-  (`element | component | slot | template`), `flags`
-  (`conditional | repeated | dynamic-component | spread-binding | model-binding | slot-content`)
-  and `attributes`.
-- **Attributes** are a discriminated union:
-  `static` (`title="x"`, valueless `disabled`), `bind` (`:price="4999"`, `v-bind="obj"`),
-  `on` (`@click`), `directive` (`v-if`, `v-for`, `v-model`, `#slot`, custom).
-  Each carries `editable` and, if not, a `readonlyReason`.
-- **`ComponentModel`** has props (type text as written + a `kind` for choosing Inspector widgets,
-  enum `options`, `required`, `default`), emits, slots, imports, usages (tag → binding → import →
-  resolved file) and diagnostics.
-- Everything is plain data (tested with a JSON round-trip), so the model can cross process
-  boundaries (dev server ↔ UI ↔ AI agents).
+- nothing between `v-if` / `v-else-if` / `v-else` branches; a chain head with an `else` follower
+  cannot be removed, moved, wrapped or duplicated on its own;
+- no children in void elements, raw-text elements (`textarea`, …) or `v-html`/`v-text` elements;
+- slot templates only inside components, unique per name, reordered only within their component;
+  no implicit default content next to an explicit `#default` template;
+- no HTML inside inline `<svg>` (only SVG content is rearranged there);
+- no moving an element into itself; moves are same-file and atomic (one verified edit set);
+- text edits only on elements whose content is plain text (interpolations, child elements,
+  `v-html` are shown read-only).
 
-### Node identity
+Layout follows the file: one-element-per-line placement with the right indentation, inline when
+the author wrote inline, CRLF preserved, blank-line rhythm between siblings kept, moved/wrapped
+blocks re-indented except whitespace-sensitive content (attribute values, `<pre>`, `<textarea>`,
+interpolations). Component imports are added to `<script setup>` following the existing quote and
+semicolon style (or a `<script setup>` is created in template-only files; Options API files are
+refused).
 
-`NodeId` = path of **element** indices from the template root, e.g. `"1.2"`. Global identity is
-`{ file, nodeId }`. Text/comment/attribute edits never change ids; structural edits (insert,
-remove, move) do. That is acceptable because every operation is applied to the current source and
-the model is re-derived after each write; a future editor session keeps selection by re-mapping ids
-after structural operations (see ADR-0006).
+Project-level checks live in the service (they need other files): required props without default
+must be provided (never invented); inserting a component into itself is refused; an existing
+import of the same component is reused; content is refused inside a project component that renders
+no matching `<slot>`.
 
-## 5. Safe subset (current rules)
+## 6. History (undo/redo)
 
-| Situation                                                 | Visual prop editing                    |
+Server-side, in `EditorService` (ADR-0010). Each applied operation is stored as text patches
+(forward + inverse) with the file's content hash before/after. Undo/redo replay a patch only when
+the file is exactly at the expected version; if the file changed outside the editor, that file's
+history is dropped with an explicit message. History is linear across files and lives as long as
+the dev server.
+
+## 7. Preview ↔ source mapping
+
+Dev-only instrumentation in memory (ADR-0008): native elements get `data-vl="<file>:<nodeId>"`,
+component usages get `data-vl-u-<hash(file)>="<file>:<nodeId>"` (fallthrough to the child root;
+skipped for components known to have several roots). The client runtime resolves a clicked
+element to its innermost native node and the chain of enclosing usages, draws hover / selection /
+drop overlays, runs in-canvas drags and forwards shortcuts. Drop position (before / after /
+inside) follows the parent's flow direction.
+
+## 8. Safe subset for props
+
+| Situation                                                 | Visual editing                         |
 | --------------------------------------------------------- | -------------------------------------- |
 | `title="x"`, `title='x'`, `title=x`, valueless `featured` | ✅ editable                            |
 | `:price="4999"`, `:title="'x'"`, `:ok="true"`, `:n="-1"`  | ✅ editable (literal binding)          |
+| static `class` / `style` next to `:class` / `:style`      | ✅ static part editable (Vue merges)   |
 | `:title="product.name"` or any non-literal                | ⚠ `advanced-binding` (removal allowed) |
-| `:[name]="x"`                                             | ⚠ `dynamic-argument`                   |
-| `:title.prop`, `.camel`, `.attr`                          | ⚠ `modifiers`                          |
-| element has `v-bind="obj"`                                | ⚠ `spread-binding` (all props)         |
-| prop driven by `v-model` / `v-model:arg`                  | ⚠ `model-binding`                      |
-| same prop written twice (`class` + `:class`)              | ⚠ `duplicate`                          |
+| `:[name]="x"` / modifiers                                 | ⚠ `dynamic-argument` / `modifiers`     |
+| element has `v-bind="obj"`                                | ⚠ `spread-binding`                     |
+| prop driven by `v-model`                                  | ⚠ `model-binding`                      |
+| same prop written twice (`title` + `:title`)              | ⚠ `duplicate`                          |
 | `is`, `key`, `ref`                                        | ⚠ `reserved`                           |
-| `v-if`/`v-for`/`v-slot` on the element                    | props editable; element is flagged     |
-| `<template lang="pug">`, `<template src>`                 | whole template unsupported             |
-| file with parse errors                                    | nothing is edited                      |
+| file with parse errors, `<template lang="pug">`           | nothing is edited                      |
 
-Writing rules:
+## 9. Script analysis
 
-- existing static attribute + string → replace the value, keep the quote style (switch quotes only
-  if the value contains the quote), keep unquoted style when the value allows it;
-- existing literal binding → replace the literal, keep the binding form and inner quote style;
-- number/boolean on a static attribute → becomes a binding (`:price="20"`);
-- new attribute → after the last attribute; on a new line with the same indentation if the last
-  attribute is on its own line, otherwise on the same line; the file's EOL is used (CRLF safe);
-- `true` for a new boolean prop is written as `:featured="true"`, never the shorthand, because the
-  shorthand is only `true` for props declared `Boolean` (the engine does not assume the child type).
+`defineProps` (type-based with local types, runtime object/array, `PropType`), `withDefaults`,
+destructure defaults, `defineEmits`, `defineModel`, `defineOptions`, imports and bindings.
+Reported, not guessed: imported prop types, generics, Options API props, `<script src>`.
 
-## 6. Script analysis
+## 10. Extension points (planned)
 
-Own static analysis over the Babel AST (ADR-0004), supporting:
+- **Component metadata providers** (e.g. `vue-component-meta`) for imported/generic prop types.
+- **Operations**: new ones follow locate → rules → edit → shape verification.
+- **Plugins** (`definePlugin({ panels, inspectors, transforms, commands })`) at the editor level;
+  they emit `Operation`s and never bypass verification.
 
-- `defineProps<{...}>()`, `defineProps<Props>()` with **local** interfaces/type aliases,
-  `extends` of local interfaces, intersections;
-- runtime `defineProps({...})` (constructors, `{ type, required, default }`, `as PropType<T>`),
-  `defineProps([...])`;
-- defaults from `withDefaults(…, {...})` and Vue 3.5 destructuring (`const { a = 1 } = defineProps()`);
-- `defineEmits` (call signatures, named tuples, array/object), `defineModel`, `defineOptions({ name })`;
-- imports and top-level bindings, used to resolve template tags like Vue's compiler does
-  (`product-card` → `ProductCard`).
+## 11. Risks
 
-Reported, not guessed: imported prop types, generics/utility types, Options API
-(detected via `export default {}` / `defineComponent({})`), `<script src>`, syntax errors.
-
-## 7. Concurrency and the file system
-
-The engine is pure: `(source, operation) → newSource`. The caller must guarantee that `source` is
-what is on disk when writing. The CLI re-reads the file before writing and aborts if it changed.
-The future dev-server plugin should use the same optimistic check (content hash per operation), so
-that edits in VS Code and in the visual editor can interleave safely.
-
-## 8. Extension points (planned)
-
-The package split is chosen so these can be added without touching the core:
-
-- **Component metadata providers** — e.g. a heavier provider based on `vue-component-meta`
-  (Volar/TypeScript) for imported/generic prop types, or library presets (PrimeVue, Vuetify).
-- **Transformations** — new operations follow the same pattern (locate → rules → edit → verify).
-- **Plugins** (`definePlugin({ panels, inspectors, transforms, commands })`) live at the editor
-  level and consume the engine API; plugins never bypass verification.
-
-## 9. Technical risks
-
-See [ROADMAP.md](ROADMAP.md#risks) for the prioritized list with mitigations.
+See [ROADMAP.md](ROADMAP.md#risks).

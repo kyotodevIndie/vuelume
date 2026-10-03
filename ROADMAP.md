@@ -1,75 +1,54 @@
 # Roadmap
 
-Legend: ✅ done · 🟡 partial / proof of concept · ⬜ not started
+Legend: ✅ done · 🟡 partial · ⬜ not started
 
-## Phase 0 — Bootstrap ✅
+## Foundation (Phases 0–3) ✅
 
-- ✅ pnpm monorepo, TypeScript strict (TS 6.0), project references
-- ✅ Vitest, ESLint (flat config + typescript-eslint), Prettier, EditorConfig
-- ✅ GitHub Actions CI (typecheck, lint, format, test, build, example build)
-- ✅ README, CONTRIBUTING, ARCHITECTURE, ROADMAP, ADRs
+- ✅ Monorepo, strict TypeScript, Vitest, ESLint, Prettier, CI (Linux + Windows, Node 22/24)
+- ✅ Project analyzer: `<script setup>` props/emits/models/slots, imports, usages → files
+- ✅ Template model with exact ranges, node ids, editability; `vuelume inspect | tree | verify`
+- ✅ Verified prop edits (`setProp`, `removeProp`), incl. static `class`/`style` next to bound ones
+- ✅ Corpus validation on 7 open-source projects ([report](docs/reports/corpus-validation.md))
 
-## Phase 1 — Project Analyzer ✅
+## Visual editor ✅ (first usable version)
 
-- ✅ Discover `.vue`/`.ts`/`.js` files (ignores `node_modules`, `dist`, hidden dirs)
-- ✅ `<script setup>`: `defineProps` (type-based with local types, runtime object/array),
-  `withDefaults`, reactive destructure defaults, `defineEmits`, `defineModel`, `defineOptions`
-- ✅ Imports, template bindings, component usages resolved to files (relative + explicit aliases)
-- ✅ Slots declared via `<slot>` outlets
-- ✅ `vuelume inspect <dir>` (text and `--json`)
-- 🟡 Options API: detected and reported, not analyzed
-- ⬜ Aliases read automatically from `tsconfig`/`vite.config`
-- ⬜ Cross-file prop types (`defineProps<ImportedProps>()`), generics (`generic="T"`)
-- ⬜ Global components (`app.component`), auto-imports (`unplugin-vue-components`)
+- ✅ Structural engine: `insertNode`, `removeNode`, `moveNode` (atomic), `wrapNode`,
+  `duplicateNode`, `setText`, verified by template shape (ADR-0009); component imports
+- ✅ Undo/redo as versioned text patches, safe with external edits (ADR-0010)
+- ✅ Dev-only Vite plugin: preview instrumentation (ADR-0008), versioned editing API
+- ✅ Editor UI (ADR-0011): layers (expand/collapse, drag to reorder/nest), insert palette
+  (search, project components + HTML, required-props dialog), live preview (device sizes,
+  hover/selection labels, drop indicators, drag inside the canvas), inspector (props, text,
+  classes, styles, attributes, slots, read-only directives), toolbar actions, keyboard shortcuts,
+  resizable panels, change indicator, external-change sync
 
-## Phase 2 — AST / Project Model 🟡 (base done)
+## Next
 
-- ✅ Template model with exact ranges, node ids, attribute kinds, flags, editability
-- ✅ Source ↔ node: `findElementById`, `findElementAtOffset`; `vuelume tree <file>`
-- ⬜ Runtime (canvas) ↔ node mapping — **needs a spike, highest remaining risk**
-
-## Phase 3 — Safe transformations 🟡
-
-- ✅ `setProp`, `removeProp` with re-parse verification
-- ✅ `checkRoundTrip` / `vuelume verify <dir>`: in-memory stress test on any project
-- ⬜ `insertNode`, `removeNode`, `moveNode`, `wrapNode` (same verify pattern + id re-mapping)
-- ⬜ Events (`addEvent`/`removeEvent`), text content, slots
-
-## Phase 4 — Minimal playground ⬜
-
-`Component Tree | Preview | Inspector`, served by a Vite dev-server plugin that owns writes
-(with optimistic concurrency) and relies on HMR (verified to work: template edits rerender
-without page reload and keep component state).
+1. ⬜ **Publishable packages**: bundle the UI into `@vuelume/vite-plugin` (today it resolves the
+   private `@vuelume/playground` package), npm metadata, changesets/releases.
+2. ⬜ **Analysis gaps found in the corpus**: aliases from `tsconfig`/Vite in the CLI/analyzer,
+   Options API props, imported prop types (directus resolves 460/4,580 usages without aliases;
+   PrimeVue is 66% Options API).
+3. ⬜ **Editor depth**: event handlers (add `@click` to a method), `v-if`/`v-for` authoring with
+   expression inputs, editing inside `v-for` items' text, multi-select, copy/paste between files,
+   cross-file moves (with import management), smarter drop validity in the canvas (server
+   pre-check while dragging).
+4. ⬜ **Styling**: class suggestions (Tailwind/UnoCSS awareness), computed-style hints, scoped
+   `<style>` editing.
+5. ⬜ **Docs site** (VitePress) and a landing page.
 
 ## Later
 
-Drag-and-drop, full component tree, CSS/Tailwind, responsive preview, router/Pinia awareness,
-Nuxt, undo/redo (operations are already invertible text edits), plugin API, component library
-presets (PrimeVue, Vuetify, shadcn-vue), AI/MCP operating on the structured operations.
-
-## Recommended next steps (in order)
-
-1. **Corpus validation.** Run `vuelume verify` and `vuelume inspect` on 5–10 real open-source Vue
-   projects of different styles; turn every failure into a fixture. Cheap, and it is the best
-   evidence for "never corrupt code".
-2. **Canvas ↔ source spike.** Dev-only template instrumentation through `@vitejs/plugin-vue`
-   `compilerOptions.nodeTransforms`, mapping rendered instances to `{ file, nodeId }` of the
-   _usage site_. Must handle `v-for` (1 node → N instances), slot content (authored in the parent),
-   multi-root components and `inheritAttrs: false`.
-3. **Cross-file types** for the Inspector (imported prop types, aliases from tsconfig/vite), either
-   via `@vue/compiler-sfc`'s type resolver with a file system, or a `vue-component-meta` provider.
-4. **Structural operations** (`insertNode`/`removeNode`/`moveNode`) with verification.
-5. **Phase 4 playground** on top of 2–4.
+Responsive variants, router/Pinia awareness, Nuxt, plugin API (`definePlugin`), component library
+presets (PrimeVue, Vuetify, shadcn-vue), persistent history, AI/MCP operating on `Operation`s.
 
 ## Risks
 
-| #   | Risk                                                                                                                                                                                                                                   | Impact  | Mitigation / status                                                                                                    |
-| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------- |
-| R1  | Runtime → source mapping for the canvas: Vue keeps no element-level source locations at runtime; one node renders N instances; slot content belongs to the parent file; injected attributes can break `inheritAttrs:false`/multi-root. | High    | Spike (next step 2). Instrument at compile time, dev-only, read from vnodes rather than DOM attributes where possible. |
-| R2  | Prop types from other files / generics / global & auto-imported components.                                                                                                                                                            | Medium  | Reported today, never guessed. Add resolver or `vue-component-meta` provider.                                          |
-| R3  | Structural edits change `NodeId`s.                                                                                                                                                                                                     | Medium  | Ids are re-derived after each write; editor keeps selection by re-mapping.                                             |
-| R4  | Concurrent edits (text editor + visual editor).                                                                                                                                                                                        | Medium  | Engine is pure; writer checks content hash before writing (CLI already does).                                          |
-| R5  | Parser drift: the project's Vue version ≠ the tool's compiler version.                                                                                                                                                                 | Low/Med | Parser output is stable since 3.4; pin `^3.5`; corpus tests.                                                           |
-| R6  | Semantics the text can't show (Boolean prop casting, `v-bind` object order, fallthrough attrs).                                                                                                                                        | Medium  | Conservative rules (explicit `:x="true"`, spread → read-only); use child prop types when available.                    |
-| R7  | Project formatting conventions (Prettier) for inserted code.                                                                                                                                                                           | Low     | Follow local layout; optional "format touched range" later.                                                            |
-| R8  | Performance on large projects.                                                                                                                                                                                                         | Low     | Per-file, synchronous, ms-level; add content-hash cache and incremental re-analysis.                                   |
+| #   | Risk                                                                                       | Impact  | Mitigation / status                                                          |
+| --- | ------------------------------------------------------------------------------------------ | ------- | ---------------------------------------------------------------------------- |
+| R1  | Prop types from other files / generics / globals not known → Inspector shows fewer widgets | Medium  | Reported, never guessed; add type resolver or `vue-component-meta` provider  |
+| R2  | Canvas drop indicator accepts positions the server later refuses                           | Low     | Clear error toast; add server pre-check during drag                          |
+| R3  | `data-vl*` attributes visible to components that enumerate `$attrs` (dev only)             | Low     | Multi-root components skipped; consider vnode-based markers if issues appear |
+| R4  | History lost on dev-server restart                                                         | Low     | Documented; persist later if needed                                          |
+| R5  | Parser drift (project Vue version ≠ tool's compiler)                                       | Low/Med | Pinned `^3.5`; corpus re-runs                                                |
+| R6  | Very large templates: each op re-parses the file                                           | Low     | ~10–40 ms on a 165 KB template; cache parse by content hash if needed        |

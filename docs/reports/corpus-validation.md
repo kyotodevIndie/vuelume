@@ -77,3 +77,29 @@ the project; the rest are packages (legitimately external) **or aliases we do no
      exists, so this is a cheap win.
    - **Imported prop types** (`defineProps<ImportedProps>()`, runtime props imported from `.ts`,
      e.g. element-plus `defineProps(buttonProps)`).
+
+## Structural operations (2026-10-03)
+
+Same 7 projects (same commits). For every file, up to 40 elements each received, in memory:
+`removeNode`, `duplicateNode`, `wrapNode` (in a `<div>`), `insertNode` after the element and as its
+last child, and `moveNode` before its previous sibling. A result counts as **ok** only after the
+shape verification (ADR-0009) accepted it; **refused** means a rule rejected the operation up
+front (e.g. `v-if`/`v-else` chains, void elements, slot rules).
+
+| Project        |     Files |  Operations |          Ok | Refused (by rule) | Rejected by verification | Exceptions |
+| -------------- | --------: | ----------: | ----------: | ----------------: | -----------------------: | ---------: |
+| vitesse        |        10 |         307 |         306 |                 1 |                        0 |          0 |
+| vuejs/docs     |        60 |       2,606 |       2,443 |               163 |                        0 |          0 |
+| nuxt/ui        |       798 |      34,630 |      31,810 |             2,820 |                        0 |          0 |
+| directus       |       586 |      40,002 |      35,501 |             4,501 |                        0 |          0 |
+| vue-vben-admin |       692 |      24,208 |      22,239 |             1,969 |                        0 |          0 |
+| element-plus   |     1,006 |      49,885 |      43,802 |             6,083 |                        0 |          0 |
+| primevue       |     2,486 |     128,911 |     124,757 |             4,154 |                        0 |          0 |
+| **Total**      | **5,638** | **280,549** | **260,858** |        **19,691** |                    **0** |      **0** |
+
+The first run had **67 operations rejected by verification** (nothing written): multi-line comments
+re-indented by `wrapNode` (41 in nuxt/ui, 12 elsewhere) and block insertion adding indentation
+inside `<pre><code>` (14 in primevue). Both were engine bugs caught by the safety net; they were
+fixed (comment text compared word-wise; inline placement inside `<pre>`/`<textarea>`) and turned
+into regression tests. A later change (blank-line rhythm between siblings) was re-validated with
+the same sweep: still 0.

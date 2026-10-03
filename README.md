@@ -1,85 +1,96 @@
 # vuelume _(provisional name)_
 
-**A code-first visual IDE for existing Vue projects** — think IDE + Figma + Unity Inspector, where
-your `.vue` files remain the single source of truth. No proprietary JSON, no runtime: remove the
-tool and you still have a normal Vue app.
+**A visual editor for existing Vue projects** — layers, a component palette, drag and drop and an
+inspector, working directly on your `.vue` files. No proprietary JSON, no runtime: every visual
+change is a small, verified edit of your source, and removing the tool leaves a normal Vue app.
 
-> **Status: early research / Phase 1.** There is no visual editor yet. This repository currently
-> proves the hard part: analyzing real Vue projects and modifying them safely, with minimal diffs.
+> **Status: early, but usable on Vue 3 + Vite projects that use `<script setup>`.**
+> Not published to npm yet: try it from this repository (see below).
 
-## What works today
+![Editor: layers, live preview with selection and the inspector](docs/images/editor-selection.jpg)
+
+## Try the editor
 
 ```bash
 pnpm install
 pnpm build
-
-# Discover components, props, emits, slots and usage
-pnpm vuelume inspect examples/basic-shop
-
-# See the template model: node ids, source locations, what is editable
-pnpm vuelume tree examples/basic-shop/src/App.vue
-
-# Change a prop (dry run prints a diff; add --write to apply)
-pnpm vuelume set-prop examples/basic-shop/src/App.vue 1.2 size small
-pnpm vuelume remove-prop examples/basic-shop/src/App.vue 1.1 badge
-
-# Read-only self-check on ANY Vue project: tries every supported edit in memory
-# and verifies the source round-trips byte-for-byte
-pnpm vuelume verify path/to/your/vue-project
+pnpm --filter basic-shop dev
 ```
 
-Example output of `inspect`:
+Open the URL printed as `vuelume editor` (e.g. `http://localhost:5173/__vuelume/`). Then:
 
-```
-Button  (src/components/Button.vue)
-  props
-    variant: string
-    size?: "small" | "medium" | "large"
-    disabled?: boolean
-  emits
-    click(event: MouseEvent)
-  slots
-    default
+- **select** anything in the live preview (Alt+click drills into the component) or in **Layers**;
+- **edit** props, text, classes, inline styles and attributes in the **Inspector**;
+- **insert** project components or HTML elements from **Insert** (click, or drag onto the preview
+  or the layers); required props are asked for, never invented;
+- **move** elements by dragging them in the layers or in the preview (before / after / inside);
+- **duplicate, wrap, move up/down, delete** from the inspector toolbar or the keyboard;
+- **undo/redo** every change (Ctrl+Z / Ctrl+Shift+Z) — even across files.
+
+Each action writes the `.vue` file immediately (watch `git diff`); Vite's HMR updates the preview.
+Edits made in another editor are picked up live; history never replays over them.
+
+To use it in your own Vite + Vue project (once published, or via a local link):
+
+```ts
+// vite.config.ts
+import vue from '@vitejs/plugin-vue'
+import vuelume from '@vuelume/vite-plugin'
+
+export default defineConfig({ plugins: [vuelume(), vue()] }) // dev only; builds are untouched
 ```
 
-and of `set-prop … 1.2 size small`:
+## How it stays safe
 
-```
-  34       <Button
-  35         variant="primary"
-  36 -       size="large"
-  36 +       size="small"
-  37       >
-```
+Every change — prop, text, insert, move, wrap, delete — is computed as a minimal text edit and
+**verified by re-parsing** before anything is written: the result must parse, other blocks must be
+unchanged, and the template must have exactly the structure the operation asked for. Anything the
+editor cannot do safely (dynamic bindings, `v-if`/`v-else` chains, content inside `v-html`,
+components without the target slot, …) is refused with an explanation and an **Open in code**
+link instead of being guessed.
 
-Anything outside the safe subset is refused instead of guessed:
+Validated on 7 open-source projects (Element Plus, PrimeVue, Nuxt UI, Directus, vue-vben-admin,
+vuejs/docs, Vitesse): **~104k prop edits and ~281k structural operations in memory, 0 corrupted
+results** — see [docs/reports/corpus-validation.md](docs/reports/corpus-validation.md).
 
-```
-✖ readonly (advanced-binding): "cart-count" on <AppHeader> cannot be edited visually (advanced-binding).
+## CLI
+
+```bash
+pnpm vuelume inspect examples/basic-shop                       # components, props, emits, slots
+pnpm vuelume tree examples/basic-shop/src/App.vue              # node ids, locations, editability
+pnpm vuelume set-prop examples/basic-shop/src/App.vue 1.2 size small   # dry run; --write applies
+pnpm vuelume verify path/to/any/vue-project                    # read-only safety self-check
 ```
 
 ## Repository layout
 
-| Path                        | What                                                               |
-| --------------------------- | ------------------------------------------------------------------ |
-| `packages/project-model`    | JSON-serializable model: components, props, template nodes, ranges |
-| `packages/vue-code-engine`  | Pure analysis + safe transformations (`setProp`, `removeProp`)     |
-| `packages/project-analyzer` | File discovery and cross-file resolution                           |
-| `packages/cli`              | The `vuelume` command                                              |
-| `examples/basic-shop`       | A real Vue 3 + Vite app used as the target in tests and demos      |
+| Path                        | What                                                                       |
+| --------------------------- | -------------------------------------------------------------------------- |
+| `packages/project-model`    | JSON-serializable model + editing/canvas protocol types                    |
+| `packages/vue-code-engine`  | Pure analysis and verified operations (props, text, insert/move/wrap/…)    |
+| `packages/project-analyzer` | File discovery and cross-file resolution                                   |
+| `packages/vite-plugin`      | Dev-only plugin: preview instrumentation, editing API + history, editor UI |
+| `packages/cli`              | The `vuelume` command                                                      |
+| `apps/playground`           | The editor UI (Vue), served by the plugin at `/__vuelume/`                 |
+| `examples/basic-shop`       | A real Vue 3 + Vite app used as the target in tests and demos              |
 
 Read next: [ARCHITECTURE.md](ARCHITECTURE.md) · [ROADMAP.md](ROADMAP.md) ·
-[DECISIONS.md](DECISIONS.md) · [CONTRIBUTING.md](CONTRIBUTING.md)
+[DECISIONS.md](DECISIONS.md) · [CONTRIBUTING.md](CONTRIBUTING.md) ·
+[editor report](VUELUME_EDITOR_REPORT.md)
 
 ## Using the engine as a library
 
 ```ts
-import { analyzeComponent, setProp } from '@vuelume/vue-code-engine'
+import { insertNode, setProp } from '@vuelume/vue-code-engine'
 
-const model = analyzeComponent(source, { filename: 'src/App.vue' })
-const result = setProp(source, { nodeId: '1.2', name: 'size', value: 'small' })
-if (result.ok) writeFile(file, result.code)
-else console.warn(result.error.code, result.error.reason) // e.g. 'readonly', 'advanced-binding'
+const result = insertNode(source, {
+  target: { nodeId: '1.2', position: 'after' },
+  node: { tag: 'Badge', attributes: [{ name: 'label', value: 'New' }] },
+  import: { local: 'Badge', source: './Badge.vue' },
+})
+if (result.ok)
+  writeFile(file, result.code) // result.nodeId is the inserted node
+else console.warn(result.error.code, result.error.message) // e.g. 'conditional-chain'
 ```
 
 ## Requirements

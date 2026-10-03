@@ -1,4 +1,3 @@
-import { parse } from '@vue/compiler-sfc'
 import type {
   LiteralValue,
   NodeId,
@@ -10,13 +9,10 @@ import type {
 import { findElementById, walkElements } from '@vuelume/project-model'
 import { escapeAttributeValue, serializeJsLiteral } from '../literals.js'
 import { camelize } from '../names.js'
-import { detectEol, LineIndex } from '../positions.js'
-import {
-  buildTemplateModel,
-  isWritableAttributeName,
-  propKey,
-  RESERVED_ATTRIBUTES,
-} from '../template.js'
+import { isLoadError, loadDocument } from '../document.js'
+import { detectEol } from '../positions.js'
+import { renderAttribute } from '../structure/markup.js'
+import { isWritableAttributeName, propKey, RESERVED_ATTRIBUTES } from '../template.js'
 import { applyTextEdits, type TextEdit } from './edits.js'
 
 /** Values the Inspector can write in this phase. Anything else stays "Open in code". */
@@ -33,6 +29,18 @@ export type TransformErrorCode =
   | 'invalid-value'
   /** The edit was computed but re-parsing showed it did not do exactly what was asked. */
   | 'verification-failed'
+  /** Structural operations: the requested position is not valid for this element. */
+  | 'invalid-target'
+  /** Structural operations: the node to create is not valid. */
+  | 'invalid-spec'
+  /** The operation would break a v-if / v-else-if / v-else chain. */
+  | 'conditional-chain'
+  /** The component name is already bound to something else in <script setup>. */
+  | 'import-conflict'
+  /** The file has no <script setup>, so a component cannot be imported automatically. */
+  | 'no-script-setup'
+  /** The content is dynamic (interpolations, v-html, child elements). */
+  | 'dynamic-content'
 
 export interface TransformError {
   code: TransformErrorCode
@@ -47,6 +55,8 @@ export type TransformResult =
       code: string
       changed: boolean
       edits: TextEdit[]
+      /** Node to select after the operation (inserted/moved/edited node), when it still exists. */
+      nodeId?: NodeId
     }
   | { ok: false; error: TransformError }
 
@@ -85,7 +95,7 @@ export function setProp(source: string, options: SetPropOptions): TransformResul
   if (!loaded.ok) return loaded
   const { element } = loaded
 
-  const matches = element.attributes.filter((a) => propKey(a) === camelize(name))
+  const matches = targeted(element, camelize(name))
   if (matches.length > 1) {
     return readonly('duplicate', `"${name}" is written more than once on <${element.tag}>.`)
   }
@@ -108,7 +118,7 @@ export function setProp(source: string, options: SetPropOptions): TransformResul
 
   if (!edit) return { ok: true, code: source, changed: false, edits: [] }
   return verify(source, [edit], element, options, (after) => {
-    const found = after.attributes.filter((a) => propKey(a) === camelize(name))
+    const found = targeted(after, camelize(name))
     return found.length === 1 && attributeHasValue(found[0]!, value)
   })
 }
@@ -126,16 +136,14 @@ export function removeProp(source: string, options: PropTarget): TransformResult
   const { element } = loaded
 
   const key = camelize(options.name)
-  const matches = element.attributes.filter((a) => propKey(a) === key)
+  const matches = targeted(element, key)
   if (matches.length === 0) return { ok: true, code: source, changed: false, edits: [] }
   if (matches.length > 1) {
     return readonly('duplicate', `"${options.name}" is written more than once on <${element.tag}>.`)
   }
 
   const edit = removalEdit(source, matches[0]!)
-  return verify(source, [edit], element, options, (after) =>
-    after.attributes.every((a) => propKey(a) !== key),
-  )
+  return verify(source, [edit], element, options, (after) => targeted(after, key).length === 0)
 }
 
 /**
@@ -169,16 +177,20 @@ function removalEdit(source: string, attr: TemplateAttribute): TextEdit {
 type Loaded = { ok: true; element: TemplateElementNode } | { ok: false; error: TransformError }
 
 function loadTemplate(source: string, filename: string): TemplateModel | TransformError {
-  const { descriptor, errors } = parse(source, { filename, sourceMap: false })
-  if (errors.length > 0) {
-    return {
-      code: 'parse-error',
-      message: `Refusing to edit a file with parse errors: ${errors[0]!.message}`,
-    }
-  }
-  const { template } = buildTemplateModel(descriptor.template, filename, new LineIndex(source))
-  return template ?? { code: 'no-template', message: 'The file has no analyzable template.' }
+  const doc = loadDocument(source, filename)
+  return isLoadError(doc) ? doc : doc.template
 }
+
+/**
+ * Attributes a prop operation targets. `class` and `style` are special: Vue merges the static
+ * and the bound form, so only the static one is written and `:class`/`:style` stay untouched.
+ */
+function targeted(element: TemplateElementNode, key: string): TemplateAttribute[] {
+  const matches = element.attributes.filter((a) => propKey(a) === key)
+  return MERGED_ATTRIBUTES.has(key) ? matches.filter((a) => a.kind === 'static') : matches
+}
+
+const MERGED_ATTRIBUTES = new Set(['class', 'style'])
 
 function loadElement(source: string, target: PropTarget): Loaded {
   const template = loadTemplate(source, target.filename ?? 'anonymous.vue')
@@ -275,11 +287,6 @@ function pickQuote(preferred: '"' | "'", value: string): '"' | "'" {
   return value.includes(other) ? preferred : other
 }
 
-function renderAttribute(name: string, value: PropValue): string {
-  if (typeof value === 'string') return `${name}="${escapeAttributeValue(value, '"')}"`
-  return `:${name}="${serializeJsLiteral(value, "'")}"`
-}
-
 /**
  * Inserts a new attribute after the last one, following the element's layout:
  * if the last attribute sits on its own line, the new one goes on a new line with the
@@ -355,16 +362,18 @@ function verify(
   }
 
   const key = camelize(target.name)
-  const untouched = (el: TemplateElementNode, text: string) =>
-    el.attributes
-      .filter((a) => propKey(a) !== key)
+  const untouched = (el: TemplateElementNode, text: string) => {
+    const touched = new Set(targeted(el, key))
+    return el.attributes
+      .filter((a) => !touched.has(a))
       .map((a) => text.slice(a.range.start.offset, a.range.end.offset))
+  }
   if (untouched(before, source).join('\0') !== untouched(after, code).join('\0')) {
     return verificationFailed('other attributes changed')
   }
   if (!expectation(after)) return verificationFailed('prop does not have the requested value')
 
-  return { ok: true, code, changed: code !== source, edits }
+  return { ok: true, code, changed: code !== source, edits, nodeId: target.nodeId }
 }
 
 function countElements(element: TemplateElementNode): number {

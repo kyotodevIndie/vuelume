@@ -154,7 +154,7 @@ describe('setProp — refuses anything outside the safe subset', () => {
     ],
     ['v-bind spread (new)', `<ProductCard v-bind="attrs" />`, 'title', 'spread-binding'],
     ['v-model arg', `<ProductCard v-model:title="t" />`, 'title', 'model-binding'],
-    ['duplicates', `<ProductCard class="a" :class="b" />`, 'class', 'duplicate'],
+    ['duplicates', `<ProductCard title="a" :title="b" />`, 'title', 'duplicate'],
     ['modifiers', `<ProductCard :title.prop="'x'" />`, 'title', 'modifiers'],
   ]
   for (const [label, template, name, reason] of cases) {
@@ -230,13 +230,32 @@ describe('removeProp', () => {
   })
 
   it('is a no-op for absent props and refuses ambiguous duplicates', () => {
-    const input = sfc(`<ProductCard class="a" :class="b" />`)
-    expect(removeProp(input, { nodeId: '0', name: 'title' })).toMatchObject({
+    const input = sfc(`<ProductCard title="a" :title="b" />`)
+    expect(removeProp(input, { nodeId: '0', name: 'badge' })).toMatchObject({
       ok: true,
       changed: false,
     })
-    const result = removeProp(input, { nodeId: '0', name: 'class' })
+    const result = removeProp(input, { nodeId: '0', name: 'title' })
     expect(!result.ok && result.error.reason).toBe('duplicate')
+  })
+})
+
+describe('class and style merge with their bound forms', () => {
+  it('edits the static class/style and leaves :class/:style untouched', () => {
+    const input = sfc(`<div class="a" :class="{ on: active }" style="color: red" :style="dyn" />`)
+    expect(code(setProp(input, { nodeId: '0', name: 'class', value: 'a b' }))).toBe(
+      sfc(`<div class="a b" :class="{ on: active }" style="color: red" :style="dyn" />`),
+    )
+    expect(code(removeProp(input, { nodeId: '0', name: 'style' }))).toBe(
+      sfc(`<div class="a" :class="{ on: active }" :style="dyn" />`),
+    )
+  })
+
+  it('adds a static class next to an existing :class', () => {
+    const input = sfc(`<div :class="cls" />`)
+    expect(code(setProp(input, { nodeId: '0', name: 'class', value: 'box' }))).toBe(
+      sfc(`<div :class="cls" class="box" />`),
+    )
   })
 })
 

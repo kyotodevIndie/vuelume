@@ -127,7 +127,13 @@ class ModelBuilder {
   }
 
   element(node: ElementNode, id: string): TemplateElementNode {
-    const startTagEnd = node.innerLoc ? node.innerLoc.start.offset : node.loc.end.offset
+    // The parser only records `innerLoc` for some elements, so find the `>` that closes the
+    // start tag ourselves: it is the first `>` after the last attribute (or the tag name).
+    const base = node.loc.start.offset
+    const lastProp = node.props.at(-1)
+    const from = lastProp ? lastProp.loc.end.offset - base : 1 + node.tag.length
+    const close = node.loc.source.indexOf('>', from)
+    const startTagEnd = close >= 0 ? base + close + 1 : node.loc.end.offset
     const attributes = node.props.map((p) => this.attribute(p))
     const flags = elementFlags(node, attributes)
     applyEditability(attributes, flags)
@@ -254,7 +260,9 @@ function applyEditability(attributes: TemplateAttribute[], flags: ElementFlag[])
   const counts = new Map<string, number>()
   for (const attr of attributes) {
     const key = propKey(attr)
-    if (key) counts.set(key, (counts.get(key) ?? 0) + 1)
+    // `class`/`style` merge static + bound values, so only same-kind repeats are duplicates.
+    const countKey = key && (key === 'class' || key === 'style') ? `${key}:${attr.kind}` : key
+    if (countKey) counts.set(countKey, (counts.get(countKey) ?? 0) + 1)
   }
   const modelArgs = new Set(
     attributes.flatMap((a) =>
@@ -317,7 +325,8 @@ export function propEditBlocker(
   if (attr.name !== null && !isWritableAttributeName(attr.name)) return 'unsupported-name'
   if (flags.includes('spread-binding')) return 'spread-binding'
   if (key && modelArgs.has(key)) return 'model-binding'
-  if (key && (counts.get(key) ?? 0) > 1) return 'duplicate'
+  const countKey = key && (key === 'class' || key === 'style') ? `${key}:${attr.kind}` : key
+  if (countKey && (counts.get(countKey) ?? 0) > 1) return 'duplicate'
   if (attr.kind === 'bind') {
     if (attr.modifiers.length > 0) return 'modifiers'
     if (!attr.literal) return 'advanced-binding'

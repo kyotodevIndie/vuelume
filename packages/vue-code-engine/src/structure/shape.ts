@@ -48,7 +48,8 @@ export function buildShape(nodes: TemplateChildNode[], raw = false): Shape[] {
       case 'interpolation':
         return { t: 'interp', v: node.expression.trim() }
       case 'comment':
-        return { t: 'comment', v: node.content.trim() }
+        // Comments carry no semantics; only their words matter (re-indenting moves whitespace).
+        return { t: 'comment', v: node.content.replace(/\s+/g, ' ').trim() }
     }
   })
 }

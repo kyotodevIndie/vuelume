@@ -377,6 +377,32 @@ describe('moveNode', () => {
     expect(result.code).toContain('<pre>line 1\n  line 2</pre>')
   })
 
+  it('re-indents multi-line comments inside wrapped content', () => {
+    const input = page(`  <div>
+    <!-- a comment
+         over two lines -->
+    <span>x</span>
+  </div>`)
+    const result = ok(wrapNode(input, { nodeId: '0', wrapper: { tag: 'section' } }))
+    expect(result.code).toContain(
+      '      <!-- a comment' + String.fromCharCode(10) + '           over two lines -->',
+    )
+  })
+
+  it('never adds whitespace inside <pre>', () => {
+    const input = page(
+      '  <pre><code>' +
+        String.fromCharCode(10) +
+        'line' +
+        String.fromCharCode(10, 10) +
+        '</code></pre>',
+    )
+    const result = ok(
+      insertNode(input, { target: { nodeId: '0.0', position: 'last-child' }, node: { tag: 'b' } }),
+    )
+    expect(result.code).toContain('line' + String.fromCharCode(10, 10) + '<b></b></code></pre>')
+  })
+
   it('refuses invalid moves', () => {
     expect(
       errorOf(moveNode(BASE, { nodeId: '0', target: { nodeId: '0.5', position: 'after' } })),

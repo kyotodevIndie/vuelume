@@ -526,9 +526,16 @@ function placement(ctx: Context, target: StructuralTarget): Placement | Failure 
     return inline(end)
   }
 
-  const { element } = ctx.entry(target.nodeId)!
+  const { element, parent } = ctx.entry(target.nodeId)!
   const start = element.range.start.offset
   const end = element.range.end.offset
+
+  // Whitespace is content inside <pre>/<textarea>: never add indentation or line breaks there.
+  const container = target.position === 'before' || target.position === 'after' ? parent : element
+  if (inRawText(ctx, container)) {
+    if (target.position === 'before') return inline(start)
+    if (target.position === 'after') return inline(end)
+  }
 
   if (target.position === 'before') {
     return startsLine(s, start) ? line(lineStart(s, start), lineIndent(s, start)) : inline(start)
@@ -545,6 +552,7 @@ function placement(ctx: Context, target: StructuralTarget): Placement | Failure 
   if (element.selfClosing) {
     const cut = selfClosingCut(s, element)
     const close = `</${element.tag}>`
+    if (inRawText(ctx, element)) return { start: cut, end, indent: null, before: '>', after: close }
     return standalone
       ? {
           start: cut,
@@ -560,6 +568,7 @@ function placement(ctx: Context, target: StructuralTarget): Placement | Failure 
   if (close === null)
     return fail('invalid-target', `Could not find the end tag of <${element.tag}>.`)
   const inner = element.startTagRange.end.offset
+  if (inRawText(ctx, element)) return inline(target.position === 'first-child' ? inner : close)
   const content = s.slice(inner, close)
   const firstNonWs = content.search(/\S/)
 
@@ -744,6 +753,14 @@ function finalize(
 // ---------------------------------------------------------------------------
 
 /** Whether content placed in `container` ends up in SVG (not HTML) parsing context. */
+function inRawText(ctx: Context, container: TemplateElementNode | null): boolean {
+  for (let el = container; el; el = ctx.entry(el.id)?.parent ?? null) {
+    const tag = el.tag.toLowerCase()
+    if (tag === 'pre' || tag === 'textarea') return true
+  }
+  return false
+}
+
 function inSvg(ctx: Context, container: TemplateElementNode | null): boolean {
   for (let el = container; el; el = ctx.entry(el.id)?.parent ?? null) {
     const tag = el.tag.toLowerCase()

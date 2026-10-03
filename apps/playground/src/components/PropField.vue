@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import type { PropDefinition, TemplateAttribute } from '@vuelume/project-model'
+import type { EditValue, PropDefinition, TemplateAttribute } from '@vuelume/project-model'
 import { computed } from 'vue'
-import type { PropValue } from '../api'
+import Icon from './Icon.vue'
 
 const props = defineProps<{
   name: string
@@ -9,10 +9,10 @@ const props = defineProps<{
   definition: PropDefinition | undefined
 }>()
 
-const emit = defineEmits<{ set: [value: PropValue]; remove: []; open: [] }>()
+const emit = defineEmits<{ set: [value: EditValue]; remove: []; open: [] }>()
 
 /** Current value as written in the template, when it is a plain literal. */
-const current = computed<PropValue | undefined>(() => {
+const current = computed<EditValue | undefined>(() => {
   const attr = props.attribute
   if (attr?.kind === 'static') return attr.value ?? true
   if (attr?.kind === 'bind' && attr.literal && 'value' in attr.literal) return attr.literal.value
@@ -28,6 +28,13 @@ const kind = computed(() => {
 })
 
 const readonly = computed(() => props.attribute !== undefined && !props.attribute.editable)
+const rawText = computed(() => {
+  const attr = props.attribute
+  if (!attr) return ''
+  if (attr.kind === 'static')
+    return attr.value === null ? attr.name : `${attr.name}="${attr.value}"`
+  return `${attr.rawName}="${attr.expression ?? ''}"`
+})
 
 function commitText(event: Event) {
   const input = event.target as HTMLInputElement
@@ -56,19 +63,14 @@ function commitEnum(event: Event) {
           : undefined
       "
     >
-      {{ name }}
+      <span>{{ name }}<span v-if="definition?.required" class="req" title="Required">*</span></span>
       <small v-if="definition">{{ definition.type.text }}</small>
-      <small v-else>attribute</small>
     </label>
 
     <div v-if="readonly" class="readonly">
-      <code>{{
-        attribute && 'rawName' in attribute
-          ? `${attribute.rawName}="${attribute.expression ?? ''}"`
-          : ''
-      }}</code>
-      <span class="warn">⚠ {{ attribute?.readonlyReason }} —</span>
-      <a href="#" @click.prevent="emit('open')">open in code</a>
+      <code>{{ rawText }}</code>
+      <span class="warn-text">⚠ {{ attribute?.readonlyReason }}</span>
+      <a href="#" @click.prevent="emit('open')">Open in code</a>
     </div>
 
     <div v-else class="control">
@@ -82,12 +84,16 @@ function commitEnum(event: Event) {
           {{ o }}
         </option>
       </select>
-      <input
-        v-else-if="kind === 'boolean'"
-        type="checkbox"
-        :checked="current === true"
-        @change="emit('set', ($event.target as HTMLInputElement).checked)"
-      />
+      <label v-else-if="kind === 'boolean'" class="switch">
+        <input
+          type="checkbox"
+          :checked="current === true"
+          @change="emit('set', ($event.target as HTMLInputElement).checked)"
+        />
+        <span>{{
+          current === true ? 'true' : current === false ? 'false' : (definition?.default ?? 'unset')
+        }}</span>
+      </label>
       <input
         v-else
         :type="kind === 'number' ? 'number' : 'text'"
@@ -96,8 +102,8 @@ function commitEnum(event: Event) {
         @change="commitText"
         @keydown.enter="($event.target as HTMLInputElement).blur()"
       />
-      <button v-if="attribute" class="remove" title="Remove from code" @click="emit('remove')">
-        ×
+      <button v-if="attribute" class="icon-button" title="Remove from code" @click="emit('remove')">
+        <Icon name="close" :size="11" />
       </button>
     </div>
   </div>

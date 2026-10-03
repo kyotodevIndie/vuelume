@@ -9,6 +9,6 @@ export default defineConfig({
     alias: [{ find: /^@vuelume\/(.*)$/, replacement: `${packagesDir}/$1/src/index.ts` }],
   },
   test: {
-    include: ['packages/*/test/**/*.test.ts'],
+    include: ['packages/*/test/**/*.test.ts', 'apps/*/test/**/*.test.ts'],
   },
 })

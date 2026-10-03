@@ -27,12 +27,41 @@ export interface CanvasTarget {
   usages: NodeRef[]
 }
 
+/** Drop position in the canvas; `inside` maps to the `last-child` structural position. */
+export type DropPosition = 'before' | 'after' | 'inside'
+
+export interface KeyInput {
+  key: string
+  /** Ctrl on Windows/Linux, Cmd on macOS. */
+  mod: boolean
+  shift: boolean
+  alt: boolean
+}
+
 export type EditorToPreview =
   | { type: 'vuelume:inspect'; enabled: boolean }
-  | { type: 'vuelume:highlight'; target: NodeRef | null }
+  | { type: 'vuelume:highlight'; target: NodeRef | null; label?: string }
+  /** A palette item is being dragged in the editor: the preview shows drop indicators. */
+  | { type: 'vuelume:drag'; active: boolean }
 
 export type PreviewToEditor =
-  { type: 'vuelume:ready' } | { type: 'vuelume:select'; target: CanvasTarget }
+  | { type: 'vuelume:ready' }
+  | { type: 'vuelume:select'; target: CanvasTarget }
+  /**
+   * Something was dropped on the canvas: a palette item (`insert`) or the selected element,
+   * dragged inside the preview (`move`, with its source locator).
+   */
+  | {
+      type: 'vuelume:drop'
+      mode: 'insert' | 'move'
+      target: NodeRef
+      position: DropPosition
+      source?: NodeRef
+    }
+  /** Editor shortcuts pressed while the preview has focus. */
+  | { type: 'vuelume:key'; input: KeyInput }
+  /** Vite applied an HMR update (edits from the editor or from any other tool). */
+  | { type: 'vuelume:updated'; files: string[] }
 
 export function encodeLocator(locator: NodeRef): string {
   return `${locator.file}:${locator.nodeId}`

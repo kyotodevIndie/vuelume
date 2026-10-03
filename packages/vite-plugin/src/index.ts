@@ -14,15 +14,16 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { ComponentUsage } from '@vuelume/project-model'
+import type { ComponentUsage, OperationRequest } from '@vuelume/project-model'
 import { analyzeComponent } from '@vuelume/vue-code-engine'
 import type { Plugin, ResolvedConfig } from 'vite'
 import { hasSingleRootElement, instrumentSfc } from './instrument.js'
 import { API_PATH, BASE_PATH } from '@vuelume/project-model'
-import { EditorService, type TransformRequest } from './service.js'
+import { EditorService } from './service.js'
 
 export { instrumentSfc, hasSingleRootElement } from './instrument.js'
-export { EditorService, version, type ComponentSnapshot, type TransformRequest } from './service.js'
+export { EditorService, version, type ServiceResponse } from './service.js'
+export { EditHistory, invertEdits, type HistoryEntry } from './history.js'
 export * from '@vuelume/project-model'
 
 export interface VuelumeOptions {
@@ -143,7 +144,10 @@ async function handle(
         ? json(res, 200, snapshot)
         : json(res, 404, { code: 'not-found', message: 'Not found.' })
     }
-    if (req.method === 'POST' && route === 'transform') {
+    if (req.method === 'GET' && route === 'history') {
+      return json(res, 200, service.history.state())
+    }
+    if (req.method === 'POST' && (route === 'operation' || route === 'undo' || route === 'redo')) {
       // Writes are only accepted from the editor page itself: JSON content type (forces a CORS
       // preflight for cross-site requests, which we never answer) and a same-origin check.
       if (!req.headers['content-type']?.startsWith('application/json') || !sameOrigin(req)) {
@@ -152,8 +156,13 @@ async function handle(
           message: 'Cross-origin writes are not allowed.',
         })
       }
-      const request = JSON.parse(await body(req)) as TransformRequest
-      const result = await service.transform(request)
+      const payload = await body(req)
+      const result =
+        route === 'undo'
+          ? await service.undo()
+          : route === 'redo'
+            ? await service.redo()
+            : await service.apply(JSON.parse(payload) as OperationRequest)
       return result.ok ? json(res, 200, result) : json(res, result.status, result)
     }
     return json(res, 404, { code: 'not-found', message: 'Unknown API route.' })

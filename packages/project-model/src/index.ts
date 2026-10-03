@@ -12,6 +12,7 @@ export type * from './source.js'
 export type * from './template.js'
 export type * from './component.js'
 export type * from './project.js'
+export type * from './editing.js'
 
 export { walkElements, findElementById, findElementAtOffset } from './traverse.js'
 export * from './canvas.js'

@@ -1,24 +1,12 @@
+import type { EditValue, NodeSpec } from '@vuelume/project-model'
 import { escapeAttributeValue, serializeJsLiteral } from '../literals.js'
 import { camelize } from '../names.js'
 import { isWritableAttributeName, RESERVED_ATTRIBUTES } from '../template.js'
 
-/** A literal value written into the template. */
-export type SpecValue = string | number | boolean
+export type { NodeSpec } from '@vuelume/project-model'
 
-/**
- * Description of a node to create. Deliberately small: anything richer (expressions, events,
- * directives) is written in code, not invented by the editor.
- */
-export interface NodeSpec {
-  /** `div`, `ProductCard`, `product-card`, or `template` together with `slot`. */
-  tag: string
-  /** Static attributes (strings) or literal bindings (numbers/booleans → `:name="1"`). */
-  attributes?: { name: string; value: SpecValue }[]
-  /** Static text content (escaped). */
-  text?: string
-  /** Only with `tag: 'template'`: renders a slot template `<template #name>`. */
-  slot?: string
-}
+/** A literal value written into the template. */
+export type SpecValue = EditValue
 
 /** HTML elements that cannot have children or an end tag. */
 export const VOID_ELEMENTS: ReadonlySet<string> = new Set([

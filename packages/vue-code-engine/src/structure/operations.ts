@@ -1,4 +1,9 @@
-import type { NodeId, TemplateChildNode, TemplateElementNode } from '@vuelume/project-model'
+import type {
+  NodeId,
+  StructuralTarget,
+  TemplateChildNode,
+  TemplateElementNode,
+} from '@vuelume/project-model'
 import { analyzeComponent } from '../analyze.js'
 import { isLoadError, loadDocument, type LoadedDocument } from '../document.js'
 import { pascalize } from '../names.js'
@@ -27,16 +32,7 @@ import {
 } from './markup.js'
 import { buildShape, cloneShape, locate, pathOf, serializeShape, type Shape } from './shape.js'
 
-export type InsertPosition = 'before' | 'after' | 'first-child' | 'last-child'
-
-/**
- * Where a node goes. `nodeId: null` addresses the template root itself (only `first-child`
- * and `last-child` make sense there).
- */
-export interface StructuralTarget {
-  nodeId: NodeId | null
-  position: InsertPosition
-}
+export type { InsertPosition, StructuralTarget } from '@vuelume/project-model'
 
 interface Base {
   /** Only used in messages and analysis; the engine never touches the file system. */

@@ -15,6 +15,7 @@ import {
   blockRange,
   detectIndentUnit,
   endsLine,
+  eolLength,
   lineEnd,
   lineIndent,
   lineStart,
@@ -120,7 +121,7 @@ export function removeNode(source: string, options: RemoveNodeOptions): Transfor
     )
   }
 
-  const block = blockRange(source, element.range.start.offset, element.range.end.offset)
+  const block = removalRange(source, entry)
   const expected = ctx.shape()
   const found = locate(expected, element.id)!
   found.container.splice(found.container.indexOf(found.shape), 1)
@@ -165,7 +166,7 @@ export function moveNode(source: string, options: MoveNodeOptions): TransformRes
   if ('ok' in place) return place
   const start = element.range.start.offset
   const end = element.range.end.offset
-  const block = blockRange(source, start, end)
+  const block = removalRange(source, entry)
   if (place.end > block.start && place.start < block.end) {
     return fail('invalid-target', 'The element is already at that position.')
   }
@@ -537,13 +538,19 @@ function placement(ctx: Context, target: StructuralTarget): Placement | Failure 
     if (target.position === 'after') return inline(end)
   }
 
+  // Siblings separated by blank lines keep that rhythm around the new node.
+  const entry = ctx.entry(target.nodeId)!
   if (target.position === 'before') {
-    return startsLine(s, start) ? line(lineStart(s, start), lineIndent(s, start)) : inline(start)
+    if (!startsLine(s, start)) return inline(start)
+    const spaced = blankSeparated(s, entry)
+    return { ...line(lineStart(s, start), lineIndent(s, start)), after: spaced ? eol + eol : eol }
   }
   if (target.position === 'after') {
     if (!endsLine(s, end)) return inline(end)
     const indent = lineIndent(s, start)
-    return { start: lineEnd(s, end), end: lineEnd(s, end), indent, before: eol + indent, after: '' }
+    const terminator = lineEnd(s, end)
+    const before = (blankSeparated(s, entry) ? eol + eol : eol) + indent
+    return { start: terminator, end: terminator, indent, before, after: '' }
   }
 
   const childIndent = firstLineIndent(s, element.children) ?? lineIndent(s, start) + ctx.unit
@@ -595,6 +602,57 @@ function placement(ctx: Context, target: StructuralTarget): Placement | Failure 
   return content.includes('\n') && startsLine(s, close)
     ? line(lineStart(s, close), childIndent)
     : inline(close)
+}
+
+/** `true` when the line containing `offset` holds only whitespace. */
+function isBlankLine(source: string, offset: number): boolean {
+  return source.slice(lineStart(source, offset), lineEnd(source, offset)).trim() === ''
+}
+
+/** Whether an element is separated from an adjacent sibling element by a blank line. */
+function blankSeparated(source: string, entry: Entry): boolean {
+  const start = lineStart(source, entry.element.range.start.offset)
+  const terminator = lineEnd(source, entry.element.range.end.offset)
+  const next = terminator + eolLength(source, terminator)
+  return (
+    (previousElementSibling(entry) !== null && start > 0 && isBlankLine(source, start - 1)) ||
+    (nextElementSibling(entry) !== null && next < source.length && isBlankLine(source, next))
+  )
+}
+
+/**
+ * The block to delete for an element. With siblings separated by blank lines, one adjacent
+ * blank line goes too, so neither a double blank line nor a dangling one is left behind.
+ */
+function removalRange(source: string, entry: Entry): { start: number; end: number } {
+  const { start, end } = entry.element.range
+  const block = blockRange(source, start.offset, end.offset)
+  if (!block.standalone || block.start === 0 || block.end >= source.length) return block
+  const blankBefore = isBlankLine(source, block.start - 1)
+  const blankAfter = isBlankLine(source, block.end)
+  if (blankAfter && (blankBefore || previousElementSibling(entry) === null)) {
+    const terminator = lineEnd(source, block.end)
+    return { start: block.start, end: terminator + eolLength(source, terminator) }
+  }
+  if (blankBefore && nextElementSibling(entry) === null) {
+    return { start: lineStart(source, block.start - 1), end: block.end }
+  }
+  return block
+}
+
+function nextElementSibling(entry: Entry): TemplateElementNode | null {
+  const index = entry.siblings.indexOf(entry.element)
+  for (const node of entry.siblings.slice(index + 1)) if (node.type === 'element') return node
+  return null
+}
+
+function previousElementSibling(entry: Entry): TemplateElementNode | null {
+  const index = entry.siblings.indexOf(entry.element)
+  for (let i = index - 1; i >= 0; i--) {
+    const node = entry.siblings[i]!
+    if (node.type === 'element') return node
+  }
+  return null
 }
 
 /** Indentation of the first child element that starts its own line. */

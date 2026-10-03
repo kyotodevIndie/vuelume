@@ -548,6 +548,58 @@ describe('formatting and line endings', () => {
   })
 })
 
+describe('blank lines between siblings', () => {
+  const spaced = page(
+    ['  <main>', '    <A />', '', '    <B />', '', '    <C />', '  </main>'].join(
+      String.fromCharCode(10),
+    ),
+  )
+  const lines = (code: string) =>
+    code.slice(code.indexOf('<main>'), code.indexOf('</main>')).split(String.fromCharCode(10))
+
+  it('removing an element between blank lines leaves a single blank line', () => {
+    expect(lines(ok(removeNode(spaced, { nodeId: '0.1' })).code)).toEqual([
+      '<main>',
+      '    <A />',
+      '',
+      '    <C />',
+      '  ',
+    ])
+  })
+
+  it('moving keeps the blank-line rhythm', () => {
+    const moved = ok(
+      moveNode(spaced, { nodeId: '0.2', target: { nodeId: '0.0', position: 'before' } }),
+    )
+    expect(lines(moved.code)).toEqual([
+      '<main>',
+      '    <C />',
+      '',
+      '    <A />',
+      '',
+      '    <B />',
+      '  ',
+    ])
+  })
+
+  it('inserting between spaced siblings adds the separator', () => {
+    const after = ok(
+      insertNode(spaced, { target: { nodeId: '0.0', position: 'after' }, node: { tag: 'hr' } }),
+    )
+    expect(lines(after.code)).toEqual([
+      '<main>',
+      '    <A />',
+      '',
+      '    <hr />',
+      '',
+      '    <B />',
+      '',
+      '    <C />',
+      '  ',
+    ])
+  })
+})
+
 describe('property check over real files', async () => {
   const fixtures = fileURLToPath(new URL('./fixtures', import.meta.url))
   const example = fileURLToPath(new URL('../../../examples/basic-shop/src', import.meta.url))

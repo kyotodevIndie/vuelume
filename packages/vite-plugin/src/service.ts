@@ -85,6 +85,8 @@ export class EditorService {
     }
 
     const label = describe(request.operation, analyzeComponent(source, { filename: request.file }))
+    const slotError = await this.#slotProblem(source, request)
+    if (slotError) return this.#fail(422, 'no-such-slot', slotError)
     const prepared = await this.#prepare(request)
     if ('error' in prepared) return { ...prepared, ok: false, history: this.history.state() }
     const result = run(source, request.file, request.operation, prepared.importRequest)
@@ -213,6 +215,41 @@ export class EditorService {
     if (!relative.startsWith('.')) relative = `./${relative}`
     operation.node = { ...operation.node, tag: component.name }
     return { importRequest: { local: component.name, source: relative } }
+  }
+
+  /**
+   * Placing content inside a project component only makes sense if that component renders the
+   * slot: a component without a default `<slot>` would silently drop it. Unknown components
+   * (libraries, globals) are not checked.
+   */
+  async #slotProblem(source: string, request: OperationRequest): Promise<string | null> {
+    const operation = request.operation
+    if (operation.op !== 'insertNode' && operation.op !== 'moveNode') return null
+    const { target } = operation
+    if (
+      target.nodeId === null ||
+      (target.position !== 'first-child' && target.position !== 'last-child')
+    ) {
+      return null
+    }
+    const snapshot = await this.#snapshot(source, request.file)
+    const element = snapshot.model.template
+      ? findElementById(snapshot.model.template, target.nodeId)
+      : undefined
+    if (element?.elementType !== 'component') return null
+    const usage = snapshot.model.usages.find((u) => u.nodeId === element.id)
+    const component = usage?.resolvedFile
+      ? (await this.project()).components.find((c) => c.file === usage.resolvedFile)
+      : undefined
+    if (!component?.template) return null
+    const slot =
+      operation.op === 'insertNode' && operation.node.tag === 'template'
+        ? (operation.node.slot ?? 'default')
+        : 'default'
+    if (component.slots.some((s) => s.name === slot || s.name === null)) return null
+    return slot === 'default'
+      ? `<${component.name}> has no default <slot>, so content placed inside it would not be rendered.`
+      : `<${component.name}> has no "${slot}" slot.`
   }
 
   /** Analyzes a file and resolves its component usages to project files (for the Inspector). */

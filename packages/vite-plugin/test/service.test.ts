@@ -149,6 +149,36 @@ describe('EditorService operations', () => {
   })
 })
 
+describe('EditorService slot checks', () => {
+  it('refuses content inside a project component that renders no default slot', async () => {
+    const result = await apply({
+      op: 'insertNode',
+      target: { nodeId: '0.1', position: 'last-child' },
+      node: { tag: 'p' },
+    })
+    expect(!result.ok && result.error.code).toBe('no-such-slot')
+    const named = await apply({
+      op: 'insertNode',
+      target: { nodeId: '0.1', position: 'last-child' },
+      node: { tag: 'template', slot: 'footer' },
+    })
+    expect(!named.ok && named.error.message).toMatch(/no "footer" slot/)
+  })
+
+  it('allows it when the component declares the slot', async () => {
+    await write(
+      'src/components/Card.vue',
+      CARD.replace('<article>{{ title }}</article>', '<article>{{ title }}<slot /></article>'),
+    )
+    const result = await apply({
+      op: 'insertNode',
+      target: { nodeId: '0.1', position: 'last-child' },
+      node: { tag: 'p' },
+    })
+    expect(result.ok).toBe(true)
+  })
+})
+
 describe('EditorService undo/redo', () => {
   it('undoes and redoes structural and prop edits exactly, restoring selection', async () => {
     await service.apply({

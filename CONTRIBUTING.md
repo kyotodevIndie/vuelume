@@ -35,11 +35,12 @@ Useful scripts:
 ## Running the editor
 
 ```bash
-pnpm build
-pnpm --filter basic-shop dev   # open the printed "vuelume editor" URL
+pnpm dev   # open the printed "vuelume editor" URL
 ```
 
-After changing the plugin or the UI, rebuild (`pnpm build`) and restart the dev server.
+`pnpm dev` (`scripts/dev.mjs`) runs `tsc -b --watch`, `vite build --watch` for the editor UI and
+the example app. When a package used by the plugin is rebuilt, the example dev server restarts
+by itself (Vite loads plugins only at startup); editor UI changes only need a page reload.
 
 ## Rules for transformations
 

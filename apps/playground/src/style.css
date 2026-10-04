@@ -826,3 +826,82 @@ a {
   gap: 8px;
   margin-top: 16px;
 }
+
+/* ---------------------------------------------------------------- drag & drop feedback */
+.drag-ghost {
+  position: fixed;
+  top: -200px;
+  left: -200px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--panel-3);
+  border: 1px solid var(--accent);
+  color: var(--text);
+  font:
+    600 13px ui-monospace,
+    monospace;
+  box-shadow:
+    0 12px 28px #0008,
+    0 0 0 4px var(--accent-soft);
+  white-space: nowrap;
+}
+.drag-ghost-icon {
+  color: var(--component);
+}
+.drag-ghost.element .drag-ghost-icon {
+  color: var(--accent);
+}
+.drag-ghost small {
+  font: 500 10px system-ui;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.tile,
+.layer {
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease,
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+.tile:hover:not(.disabled) {
+  transform: translateY(-1px);
+}
+.tile.dragging,
+.layer.dragging {
+  opacity: 0.35;
+  transform: scale(0.97);
+}
+.layer.drop-before::before,
+.layer.drop-after::after {
+  animation: drop-line 0.15s ease-out;
+  box-shadow: 0 0 0 3px #22c55e33;
+}
+.layer.drop-inside {
+  animation: drop-breathe 1s ease-in-out infinite;
+}
+@keyframes drop-line {
+  from {
+    transform: scaleX(0.3);
+    opacity: 0;
+  }
+}
+@keyframes drop-breathe {
+  50% {
+    background: #22c55e33;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tile,
+  .layer,
+  .layer.drop-inside,
+  .layer.drop-before::before,
+  .layer.drop-after::after {
+    transition: none;
+    animation: none;
+  }
+}

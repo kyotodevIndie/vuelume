@@ -13,9 +13,12 @@ change is a small, verified edit of your source, and removing the tool leaves a 
 
 ```bash
 pnpm install
-pnpm build
-pnpm --filter basic-shop dev
+pnpm dev
 ```
+
+`pnpm dev` builds the tool once, keeps it rebuilding on change and runs the example app with the
+plugin (restarting it automatically when the plugin or the engine changes; UI changes only need
+a page reload). Pass Vite options after `--`, e.g. `pnpm dev -- --port 5180`.
 
 Open the URL printed as `vuelume editor` (e.g. `http://localhost:5173/__vuelume/`). Then:
 

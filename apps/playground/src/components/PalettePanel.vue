@@ -2,9 +2,11 @@
 import { computed, ref } from 'vue'
 import { components, insertAtSelection, labelOf, post, state, type InsertMode } from '../editor'
 import { componentItems, HTML_ITEMS, type PaletteItem } from '../palette'
+import { setDragGhost } from '../dragGhost'
 import Icon from './Icon.vue'
 
 const query = ref('')
+const draggingId = ref<string | null>(null)
 const modes: { id: InsertMode; label: string }[] = [
   { id: 'before', label: 'Before' },
   { id: 'after', label: 'After' },
@@ -31,12 +33,15 @@ function onDragStart(event: DragEvent, item: PaletteItem) {
     return
   }
   state.drag = { kind: 'insert', item }
+  draggingId.value = item.id
   event.dataTransfer?.setData('text/plain', item.label)
   if (event.dataTransfer) event.dataTransfer.effectAllowed = 'copy'
+  setDragGhost(event, `<${item.label}>`, item.kind === 'component' ? 'component' : 'element')
   post({ type: 'vuelume:drag', active: true })
 }
 function onDragEnd() {
   state.drag = null
+  draggingId.value = null
   post({ type: 'vuelume:drag', active: false })
 }
 </script>
@@ -78,7 +83,7 @@ function onDragEnd() {
         <button
           v-for="item in projectItems"
           :key="item.id"
-          :class="['tile', { disabled: !!item.disabled }]"
+          :class="['tile', { disabled: !!item.disabled, dragging: draggingId === item.id }]"
           :title="
             item.disabled ??
             item.warning ??
@@ -108,7 +113,7 @@ function onDragEnd() {
         <button
           v-for="item in htmlItems"
           :key="item.id"
-          class="tile"
+          :class="['tile', { dragging: draggingId === item.id }]"
           :title="item.detail"
           draggable="true"
           @click="insertAtSelection(item)"

@@ -2,6 +2,7 @@
 import type { TemplateElementNode } from '@vuelume/project-model'
 import { computed, nextTick, ref, watch } from 'vue'
 import { dropOn, select, state, type InsertMode } from '../editor'
+import { setDragGhost } from '../dragGhost'
 import Icon from './Icon.vue'
 
 const props = defineProps<{
@@ -52,6 +53,12 @@ const icon = computed(() =>
         : 'element',
 )
 const hint = ref<InsertMode | null>(null)
+const isDragged = computed(
+  () =>
+    state.drag?.kind === 'move' &&
+    state.drag.ref.file === props.file &&
+    state.drag.ref.nodeId === props.node.id,
+)
 const row = ref<HTMLElement | null>(null)
 
 watch(isSelected, async (selected) => {
@@ -79,6 +86,7 @@ function onDragStart(event: DragEvent) {
   state.drag = { kind: 'move', ref: { file: props.file, nodeId: props.node.id } }
   event.dataTransfer?.setData('text/plain', props.node.tag)
   if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
+  setDragGhost(event, `<${props.node.tag}>`, 'move')
 }
 function onDragOver(event: DragEvent) {
   hint.value = zone(event)
@@ -99,7 +107,11 @@ async function onDrop(event: DragEvent) {
   <li>
     <div
       ref="row"
-      :class="['layer', props.node.elementType, { selected: isSelected, [`drop-${hint}`]: hint }]"
+      :class="[
+        'layer',
+        props.node.elementType,
+        { selected: isSelected, dragging: isDragged, [`drop-${hint}`]: hint },
+      ]"
       :style="{ paddingLeft: `${depth * 14 + 6}px` }"
       :title="`${file}:${node.range.start.line}:${node.range.start.column}`"
       draggable="true"

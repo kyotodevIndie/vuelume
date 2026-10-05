@@ -63,3 +63,14 @@ minimal `.vue` reproduction.
   `chore: …`. Scopes: `model`, `engine`, `analyzer`, `cli`, `example`, `repo`.
 - Keep PRs focused; include tests; `pnpm check` must pass.
 - Fixture files are excluded from Prettier and from Git EOL normalization on purpose.
+
+## Releasing
+
+All public packages share one version.
+
+1. Bump the version in every `packages/*/package.json` and add an entry to `CHANGELOG.md`.
+2. Commit (`chore: release vX.Y.Z`), push, and wait for CI to pass.
+3. Publish a GitHub release `vX.Y.Z` (or run the **Release** workflow manually). The workflow
+   builds, tests and runs `pnpm -r publish`, which skips versions already on npm and rewrites
+   `workspace:*` dependencies to real versions. It needs the `NPM_TOKEN` secret and the `npm`
+   environment approval.

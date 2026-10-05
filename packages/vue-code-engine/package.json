@@ -1,8 +1,26 @@
 {
   "name": "@vuelume/vue-code-engine",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Parses Vue SFCs into the project model and applies safe, surgical source transformations.",
+  "keywords": [
+    "vue",
+    "sfc",
+    "codemod",
+    "ast",
+    "visual-editor",
+    "refactoring"
+  ],
+  "homepage": "https://github.com/kyotodevIndie/vuelume#readme",
+  "bugs": {
+    "url": "https://github.com/kyotodevIndie/vuelume/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kyotodevIndie/vuelume.git",
+    "directory": "packages/vue-code-engine"
+  },
   "license": "MIT",
+  "author": "Thallys Morais",
   "type": "module",
   "sideEffects": false,
   "exports": {
@@ -12,8 +30,15 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "src"
   ],
+  "engines": {
+    "node": ">=22.13"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
     "@babel/parser": "^7.29.0",
     "@babel/types": "^7.29.0",

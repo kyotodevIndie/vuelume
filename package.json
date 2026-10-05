@@ -10,7 +10,7 @@
   },
   "scripts": {
     "dev": "node scripts/dev.mjs",
-    "build": "tsc -b && pnpm --filter @vuelume/playground build",
+    "build": "tsc -b && pnpm --filter @vuelume/playground build && node scripts/copy-ui.mjs",
     "typecheck": "tsc -b && tsc -p tsconfig.tests.json && pnpm --filter @vuelume/playground typecheck",
     "test": "vitest run",
     "test:watch": "vitest",

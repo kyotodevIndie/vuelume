@@ -99,12 +99,12 @@ importers:
 
   packages/vite-plugin:
     dependencies:
+      '@vitejs/plugin-vue':
+        specifier: '>=5'
+        version: 6.0.9(vite@8.3.1(@types/node@24.19.0))(vue@3.5.43(typescript@6.0.3))
       '@vue/compiler-sfc':
         specifier: ^3.5.43
         version: 3.5.43
-      '@vuelume/playground':
-        specifier: workspace:*
-        version: link:../../apps/playground
       '@vuelume/project-analyzer':
         specifier: workspace:*
         version: link:../project-analyzer

@@ -1,8 +1,27 @@
 {
   "name": "@vuelume/vite-plugin",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Dev-only Vite plugin: canvas ↔ source instrumentation, local editing API and the visual editor UI.",
+  "keywords": [
+    "vue",
+    "vite",
+    "vite-plugin",
+    "visual-editor",
+    "page-builder",
+    "devtools",
+    "drag-and-drop"
+  ],
+  "homepage": "https://github.com/kyotodevIndie/vuelume#readme",
+  "bugs": {
+    "url": "https://github.com/kyotodevIndie/vuelume/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kyotodevIndie/vuelume.git",
+    "directory": "packages/vite-plugin"
+  },
   "license": "MIT",
+  "author": "Thallys Morais",
   "type": "module",
   "exports": {
     ".": {
@@ -11,14 +30,21 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "src"
   ],
+  "engines": {
+    "node": ">=22.13"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "peerDependencies": {
+    "@vitejs/plugin-vue": ">=5",
     "vite": ">=6"
   },
   "dependencies": {
     "@vue/compiler-sfc": "^3.5.43",
-    "@vuelume/playground": "workspace:*",
     "@vuelume/project-analyzer": "workspace:*",
     "@vuelume/project-model": "workspace:*",
     "@vuelume/vue-code-engine": "workspace:*"

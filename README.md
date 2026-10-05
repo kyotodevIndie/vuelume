@@ -5,11 +5,27 @@ inspector, working directly on your `.vue` files. No proprietary JSON, no runtim
 change is a small, verified edit of your source, and removing the tool leaves a normal Vue app.
 
 > **Status: early, but usable on Vue 3 + Vite projects that use `<script setup>`.**
-> Not published to npm yet: try it from this repository (see below).
+> Preview release (0.x): expect rough edges and please report issues.
 
 ![Editor: layers, live preview with selection and the inspector](docs/images/editor-selection.jpg)
 
-## Try the editor
+## Use it in your project
+
+```bash
+npm i -D @vuelume/vite-plugin
+```
+
+```ts
+// vite.config.ts
+import vue from '@vitejs/plugin-vue'
+import vuelume from '@vuelume/vite-plugin'
+
+export default defineConfig({ plugins: [vuelume(), vue()] }) // dev only; builds are untouched
+```
+
+Start your dev server and open the URL printed as **`vuelume editor`**.
+
+## Try the editor from this repository
 
 ```bash
 pnpm install
@@ -32,16 +48,6 @@ Open the URL printed as `vuelume editor` (e.g. `http://localhost:5173/__vuelume/
 
 Each action writes the `.vue` file immediately (watch `git diff`); Vite's HMR updates the preview.
 Edits made in another editor are picked up live; history never replays over them.
-
-To use it in your own Vite + Vue project (once published, or via a local link):
-
-```ts
-// vite.config.ts
-import vue from '@vitejs/plugin-vue'
-import vuelume from '@vuelume/vite-plugin'
-
-export default defineConfig({ plugins: [vuelume(), vue()] }) // dev only; builds are untouched
-```
 
 ## How it stays safe
 

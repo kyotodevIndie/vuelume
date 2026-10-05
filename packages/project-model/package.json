@@ -1,8 +1,24 @@
 {
   "name": "@vuelume/project-model",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "UI-independent, JSON-serializable model of a Vue project (components, props, template nodes, source locations).",
+  "keywords": [
+    "vue",
+    "visual-editor",
+    "ast",
+    "model"
+  ],
+  "homepage": "https://github.com/kyotodevIndie/vuelume#readme",
+  "bugs": {
+    "url": "https://github.com/kyotodevIndie/vuelume/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kyotodevIndie/vuelume.git",
+    "directory": "packages/project-model"
+  },
   "license": "MIT",
+  "author": "Thallys Morais",
   "type": "module",
   "sideEffects": false,
   "exports": {
@@ -12,6 +28,13 @@
     }
   },
   "files": [
-    "dist"
-  ]
+    "dist",
+    "src"
+  ],
+  "engines": {
+    "node": ">=22.13"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
 }

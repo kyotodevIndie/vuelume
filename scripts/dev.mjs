@@ -15,6 +15,8 @@ import { fileURLToPath } from 'node:url'
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const example = path.join(root, 'examples/basic-shop')
 const playground = path.join(root, 'apps/playground')
+// In dev the UI is built straight into the plugin package, where the plugin serves it from.
+const uiOut = path.join(root, 'packages/vite-plugin/dist/ui')
 
 const bin = (fromDir, pkg, name) => {
   const require = createRequire(path.join(fromDir, 'package.json'))
@@ -40,7 +42,7 @@ const run = (label, args, cwd) => {
 console.log('[dev] initial build…')
 for (const [args, cwd] of [
   [[tsc, '-b'], root],
-  [[viteForUi, 'build', '--logLevel', 'warn'], playground],
+  [[viteForUi, 'build', '--logLevel', 'warn', '--outDir', uiOut, '--emptyOutDir'], playground],
 ]) {
   const result = spawnSync(process.execPath, args, { cwd, stdio: 'inherit' })
   if (result.status !== 0) process.exit(result.status ?? 1)
@@ -48,7 +50,11 @@ for (const [args, cwd] of [
 
 const children = [
   run('tsc', [tsc, '-b', '--watch', '--preserveWatchOutput'], root),
-  run('ui', [viteForUi, 'build', '--watch', '--logLevel', 'warn'], playground),
+  run(
+    'ui',
+    [viteForUi, 'build', '--watch', '--logLevel', 'warn', '--outDir', uiOut, '--emptyOutDir'],
+    playground,
+  ),
 ]
 
 let app = null
@@ -62,7 +68,7 @@ startApp()
 let timer = null
 for (const pkg of ['vite-plugin', 'vue-code-engine', 'project-analyzer', 'project-model']) {
   watch(path.join(root, 'packages', pkg, 'dist'), { recursive: true }, (_event, file) => {
-    if (!file || !file.endsWith('.js')) return
+    if (!file || !file.endsWith('.js') || file.startsWith('ui')) return
     clearTimeout(timer)
     timer = setTimeout(() => {
       console.log(`[dev] ${pkg} changed — restarting the example dev server`)

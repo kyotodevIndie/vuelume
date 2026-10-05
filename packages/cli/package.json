@@ -1,8 +1,25 @@
 {
   "name": "@vuelume/cli",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Command line interface: inspect Vue projects and apply safe transformations.",
+  "keywords": [
+    "vue",
+    "cli",
+    "sfc",
+    "analyzer",
+    "codemod"
+  ],
+  "homepage": "https://github.com/kyotodevIndie/vuelume#readme",
+  "bugs": {
+    "url": "https://github.com/kyotodevIndie/vuelume/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kyotodevIndie/vuelume.git",
+    "directory": "packages/cli"
+  },
   "license": "MIT",
+  "author": "Thallys Morais",
   "type": "module",
   "bin": {
     "vuelume": "./dist/bin.js"
@@ -14,8 +31,15 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "src"
   ],
+  "engines": {
+    "node": ">=22.13"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
     "@vuelume/project-analyzer": "workspace:*",
     "@vuelume/project-model": "workspace:*",

@@ -11,7 +11,6 @@
  */
 import { readFile, stat } from 'node:fs/promises'
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { createRequire } from 'node:module'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { ComponentUsage, OperationRequest } from '@vuelume/project-model'
@@ -168,11 +167,9 @@ async function handle(
     return json(res, 404, { code: 'not-found', message: 'Unknown API route.' })
   }
 
-  // Editor UI (pre-built single-page app).
-  const uiDir = path.join(
-    path.dirname(createRequire(import.meta.url).resolve('@vuelume/playground/package.json')),
-    'dist',
-  )
+  // Editor UI: the pre-built single-page app shipped inside this package (`dist/ui`, copied from
+  // apps/playground by `scripts/copy-ui.mjs` at build time).
+  const uiDir = path.join(RUNTIME_DIR, 'ui')
   const relative = url.pathname.slice(BASE_PATH.length) || 'index.html'
   const target = path.resolve(uiDir, relative)
   if (!target.startsWith(uiDir)) return json(res, 403, { code: 'forbidden', message: 'Forbidden.' })
